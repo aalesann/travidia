@@ -7,6 +7,8 @@ machine — no cloud APIs, no uploads to a third party.
 Use it from the command line or from a local single-page web app; both are
 thin wrappers over the same transcription engine.
 
+![travidia web UI](docs/web-ui.png)
+
 ## Features
 
 - Extracts audio from any video ffmpeg can read.
