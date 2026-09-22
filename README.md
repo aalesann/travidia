@@ -18,14 +18,18 @@ thin wrappers over the same transcription engine.
 
 ## Requirements
 
-- An NVIDIA GPU with CUDA support. Tested on an RTX 3060 Laptop (6GB VRAM),
-  which is enough for `large-v3` with fp16.
+- Windows, Linux, or macOS. Tested on Linux (RTX 3060 Laptop, 6GB VRAM).
 - Python `>=3.10,<3.14`.
 - `ffmpeg` available on `PATH`.
+- An NVIDIA GPU with CUDA support for fast transcription (`--device cuda`,
+  the default). Without one — including on macOS, which has no CUDA support
+  at all — use `--device cpu --compute-type int8` (see [CPU usage](#cpu-usage)); it works, just slower.
 - A free [HuggingFace](https://huggingface.co/) account and access token —
   only needed for diarization (see below).
 
 ## Installation
+
+### Linux / macOS
 
 ```bash
 python3 -m venv .venv
@@ -33,8 +37,31 @@ source .venv/bin/activate
 pip install -e ".[dev]"
 ```
 
-This pulls in PyTorch, WhisperX, and pyannote.audio — a multi-gigabyte
-download; the first install can take several minutes.
+Install `ffmpeg` via your package manager if you don't have it already
+(`sudo apt install ffmpeg`, `brew install ffmpeg`, etc.).
+
+### Windows (PowerShell)
+
+```powershell
+py -3 -m venv .venv
+.venv\Scripts\Activate.ps1
+pip install -e ".[dev]"
+```
+
+If activation fails with a script-execution error, allow local scripts for
+the current session first:
+
+```powershell
+Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
+```
+
+Install `ffmpeg` and make sure it's on `PATH` — easiest via
+`winget install ffmpeg` (or Chocolatey: `choco install ffmpeg`).
+
+---
+
+Either way, this pulls in PyTorch, WhisperX, and pyannote.audio — a
+multi-gigabyte download; the first install can take several minutes.
 
 ### Diarization setup (optional)
 
@@ -44,10 +71,16 @@ Diarization uses a gated pyannote.audio model. One-time setup:
    https://huggingface.co/pyannote/speaker-diarization-3.1.
 2. Create a read-only access token at
    https://huggingface.co/settings/tokens.
-3. Export it in your shell — never commit it or pass it in chat/logs:
+3. Set it as an environment variable — never commit it or paste it in chat:
 
+   Linux/macOS:
    ```bash
    export HF_TOKEN=hf_your_token_here
+   ```
+
+   Windows (PowerShell):
+   ```powershell
+   $env:HF_TOKEN = "hf_your_token_here"
    ```
 
 After the model downloads once, diarization runs fully offline.
@@ -71,9 +104,10 @@ Output format is inferred from `--output`'s extension (`.txt`, `.srt`,
 | `--device`       | `cuda`      | Torch device (`cuda` or `cpu`)           |
 | `--compute-type` | `float16`   | Model precision (e.g. `float16`, `int8`) |
 
-Running on CPU works too, just slower — no code change needed, only the
-flags: `float16` isn't supported by CTranslate2 on CPU, so pair `--device
-cpu` with `--compute-type int8`:
+### CPU usage
+
+No GPU? Running on CPU works too, just slower. `float16` isn't supported by
+CTranslate2 on CPU, so pair `--device cpu` with `--compute-type int8`:
 
 ```bash
 travidia transcribe video.mp4 --output out.srt --device cpu --compute-type int8
