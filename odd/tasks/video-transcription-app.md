@@ -28,7 +28,7 @@ Strict TDD mode: enabled (source: user's global CLAUDE.md). Runner: pytest. RED 
 - [x] T2 — Core: `audio.py` (extract audio track from video via ffmpeg subprocess). Route: delegated writer (implementation + test, non-trivial).
 - [x] T3 — Core: `transcribe.py` (WhisperX wrapper: load model, transcribe, optional diarization via pyannote, on GPU). Route: delegated writer.
 - [x] T4 — Core: `export.py` (write results as txt/srt/json). Route: delegated writer.
-- [ ] T5 — CLI: `cli/main.py` (Typer app, `transcribe` command with `--output`, `--diarize`, `--model` flags). Route: delegated writer. Depends on T2-T4.
+- [x] T5 — CLI: `cli/main.py` (Typer app, `transcribe` command with `--output`, `--diarize`, `--model` flags). Route: delegated writer. Depends on T2-T4.
 - [ ] T6 — Web: `web/app.py` (FastAPI: upload endpoint, transcribe job, diarize toggle) + `web/static/index.html` (minimal upload UI). Route: delegated writer. Depends on T2-T4.
 - [ ] T7 — Manual verification: real end-to-end run with actual video, both CLI and web, with and without diarization (requires user's HF token — cannot be fully automated here).
 
@@ -44,3 +44,7 @@ Delivery strategy: not yet chosen (forecast is well under ~400 changed-line budg
   - `src/travidia/core/export.py`: `write_txt`/`write_srt`/`write_json`.
   - Gotcha: installed whisperx 3.8.6's `DiarizationPipeline.__init__` takes `token=`, not `use_auth_token=` as the task description assumed — verified via `inspect.signature` against the installed package and used `token=` in both implementation and test. Audio is passed to WhisperX calls as a path string (transcribe/align/diarize all accept `str`), so `whisperx.load_audio` was not needed.
   - Commits: `d2ff44b` (audio+models), `2c51dd8` (transcribe), `9070779` (export). `pytest tests/core -v`: 18 passed, 0 failed.
+- 2026-09-22: T5 done (CLI). `src/travidia/cli/main.py`: Typer app, `travidia transcribe VIDEO_PATH --output OUTPUT [--diarize] [--model] [--device] [--compute-type]`. Extracts audio into a `tempfile.TemporaryDirectory()` (auto-cleaned), validates `HF_TOKEN` env var before calling `transcribe()` when `--diarize` is set (fails fast, exit 1, no core call), infers export format from `OUTPUT`'s suffix (`.txt`/`.srt`/`.json` → `write_txt`/`write_srt`/`write_json`; unknown suffix → exit 1), converts `AudioExtractionError` and any transcription exception into a clean stderr message + exit 1 (no raw traceback), prints `Transcription written to <path>` on success.
+  - Gotcha: Typer collapses a `Typer()` app with exactly one `@app.command()` into an implicit top-level command (no subcommand name needed), which conflicts with the required `travidia transcribe ...` invocation shape. Fixed by adding an empty `@app.callback()` — that forces Typer to build a command Group, so `transcribe` stays a real subcommand. Verified via `typer.main.get_command` source (collapses only when `registered_callback`/`info.callback`/`registered_groups` are all falsy and exactly 1 command is registered).
+  - TDD: RED confirmed (`ModuleNotFoundError: travidia.cli.main`) before implementation, then GREEN. Mocks patch `travidia.cli.main.extract_audio`/`travidia.cli.main.transcribe` (not `travidia.core.*`), via `typer.testing.CliRunner`.
+  - Commit: `91d64d8`. `pytest tests/cli -v`: 5 passed, 0 failed. Full suite (`pytest -q`): 23 passed.
