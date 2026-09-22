@@ -173,6 +173,14 @@
       </select>
     </label>
 
+    <label>
+      Device
+      <select id="device" name="device">
+        <option value="cuda" selected>GPU (CUDA)</option>
+        <option value="cpu">CPU (slower, no GPU needed)</option>
+      </select>
+    </label>
+
     <button type="submit" id="submit-btn">Transcribe</button>
 
     <p class="status" id="status">Transcribing... this can take a while.</p>
@@ -197,6 +205,10 @@
     const formData = new FormData(form);
     const diarizeCheckbox = document.getElementById("diarize");
     formData.set("diarize", diarizeCheckbox.checked ? "true" : "false");
+
+    const deviceSelect = document.getElementById("device");
+    // float16 isn't supported by CTranslate2 on CPU; int8 is its CPU-friendly precision.
+    formData.set("compute_type", deviceSelect.value === "cpu" ? "int8" : "float16");
 
     try {
       const response = await fetch("/api/transcribe", {

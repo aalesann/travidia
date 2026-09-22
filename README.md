@@ -71,6 +71,14 @@ Output format is inferred from `--output`'s extension (`.txt`, `.srt`,
 | `--device`       | `cuda`      | Torch device (`cuda` or `cpu`)           |
 | `--compute-type` | `float16`   | Model precision (e.g. `float16`, `int8`) |
 
+Running on CPU works too, just slower — no code change needed, only the
+flags: `float16` isn't supported by CTranslate2 on CPU, so pair `--device
+cpu` with `--compute-type int8`:
+
+```bash
+travidia transcribe video.mp4 --output out.srt --device cpu --compute-type int8
+```
+
 ### Web (local)
 
 ```bash
@@ -78,7 +86,7 @@ uvicorn travidia.web.app:app --reload
 ```
 
 Open http://localhost:8000, upload a video, pick a format, toggle
-diarization, submit — the transcript downloads as a file.
+diarization, choose GPU or CPU, submit — the transcript downloads as a file.
 
 ## Project structure
 
