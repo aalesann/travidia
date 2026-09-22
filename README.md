@@ -2,7 +2,7 @@
 
 Local video transcription with optional speaker diarization, GPU-accelerated
 via [WhisperX](https://github.com/m-bain/whisperX). Audio never leaves the
-machine — no cloud APIs, no uploads to a third party.
+machine: no cloud APIs, no uploads to a third party.
 
 Use it from the command line or from a local single-page web app; both are
 thin wrappers over the same transcription engine.
@@ -13,7 +13,7 @@ thin wrappers over the same transcription engine.
 
 - Extracts audio from any video ffmpeg can read.
 - Transcribes with WhisperX (built on faster-whisper/CTranslate2) on GPU.
-- Optional speaker diarization (pyannote.audio) — know who said what.
+- Optional speaker diarization (pyannote.audio) to identify who said what.
 - Exports to `.txt`, `.srt`, or `.json`.
 - Two interfaces, one engine: CLI (`travidia transcribe ...`) and a local web
   UI (`uvicorn travidia.web.app:app`).
@@ -24,12 +24,20 @@ thin wrappers over the same transcription engine.
 - Python `>=3.10,<3.14`.
 - `ffmpeg` available on `PATH`.
 - An NVIDIA GPU with CUDA support for fast transcription (`--device cuda`,
-  the default). Without one — including on macOS, which has no CUDA support
-  at all — use `--device cpu --compute-type int8` (see [CPU usage](#cpu-usage)); it works, just slower.
-- A free [HuggingFace](https://huggingface.co/) account and access token —
+  the default). Without one (including on macOS, which has no CUDA support
+  at all), use `--device cpu --compute-type int8`; see [CPU usage](#cpu-usage).
+  It works, just slower.
+- A free [HuggingFace](https://huggingface.co/) account and access token,
   only needed for diarization (see below).
 
 ## Installation
+
+Clone the repository and enter its directory:
+
+```bash
+git clone https://github.com/aalesann/travidia.git
+cd travidia
+```
 
 ### Linux / macOS
 
@@ -57,12 +65,12 @@ the current session first:
 Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
 ```
 
-Install `ffmpeg` and make sure it's on `PATH` — easiest via
+Install `ffmpeg` and make sure it's on `PATH`. The easiest way is
 `winget install ffmpeg` (or Chocolatey: `choco install ffmpeg`).
 
 ---
 
-Either way, this pulls in PyTorch, WhisperX, and pyannote.audio — a
+Either way, this pulls in PyTorch, WhisperX, and pyannote.audio, a
 multi-gigabyte download; the first install can take several minutes.
 
 ### Diarization setup (optional)
@@ -73,7 +81,7 @@ Diarization uses a gated pyannote.audio model. One-time setup:
    https://huggingface.co/pyannote/speaker-diarization-3.1.
 2. Create a read-only access token at
    https://huggingface.co/settings/tokens.
-3. Set it as an environment variable — never commit it or paste it in chat:
+3. Set it as an environment variable. Never commit it or paste it in chat.
 
    Linux/macOS:
    ```bash
@@ -122,7 +130,8 @@ uvicorn travidia.web.app:app --reload
 ```
 
 Open http://localhost:8000, upload a video, pick a format, toggle
-diarization, choose GPU or CPU, submit — the transcript downloads as a file.
+diarization, choose GPU or CPU, and submit. The transcript downloads as a
+file.
 
 ## Project structure
 
@@ -140,5 +149,5 @@ tests/             # pytest, mirrors src/travidia structure
 pytest
 ```
 
-Unit tests mock WhisperX/pyannote and ffmpeg subprocess calls — they run
+Unit tests mock WhisperX/pyannote and ffmpeg subprocess calls, so they run
 fast, offline, and without a GPU. No test downloads real models.
