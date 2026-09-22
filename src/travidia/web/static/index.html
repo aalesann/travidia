@@ -1,0 +1,243 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>travidia</title>
+<style>
+  :root {
+    color-scheme: light dark;
+    --bg: #f7f7f8;
+    --surface: #ffffff;
+    --border: #e2e2e6;
+    --text: #1b1b1f;
+    --muted: #6b6b72;
+    --accent: #4f46e5;
+    --accent-hover: #4338ca;
+    --error-bg: #fdecea;
+    --error-text: #9f1c1c;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0f0f12;
+      --surface: #1a1a1f;
+      --border: #2c2c33;
+      --text: #eaeaef;
+      --muted: #9a9aa2;
+      --accent: #818cf8;
+      --accent-hover: #a5b4fc;
+      --error-bg: #3a1414;
+      --error-text: #f5b5b5;
+    }
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    padding: 24px;
+  }
+
+  main {
+    width: 100%;
+    max-width: 440px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 32px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+  }
+
+  h1 {
+    margin: 0 0 4px;
+    font-size: 1.4rem;
+  }
+
+  p.subtitle {
+    margin: 0 0 24px;
+    color: var(--muted);
+    font-size: 0.9rem;
+  }
+
+  form {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+
+  label {
+    font-size: 0.85rem;
+    font-weight: 600;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  input[type="file"],
+  select {
+    font: inherit;
+    padding: 8px 10px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--bg);
+    color: var(--text);
+  }
+
+  .row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+  }
+
+  .checkbox-row {
+    flex-direction: row;
+    align-items: center;
+    gap: 8px;
+    font-weight: 500;
+  }
+
+  .checkbox-row input {
+    width: 16px;
+    height: 16px;
+  }
+
+  button {
+    font: inherit;
+    font-weight: 600;
+    padding: 10px 16px;
+    border: none;
+    border-radius: 8px;
+    background: var(--accent);
+    color: #fff;
+    cursor: pointer;
+    transition: background 0.15s ease;
+  }
+
+  button:hover:not(:disabled) {
+    background: var(--accent-hover);
+  }
+
+  button:disabled {
+    opacity: 0.6;
+    cursor: default;
+  }
+
+  .error {
+    display: none;
+    margin-top: 4px;
+    padding: 10px 12px;
+    border-radius: 8px;
+    background: var(--error-bg);
+    color: var(--error-text);
+    font-size: 0.85rem;
+  }
+
+  .status {
+    margin-top: 4px;
+    color: var(--muted);
+    font-size: 0.85rem;
+    display: none;
+  }
+</style>
+</head>
+<body>
+<main>
+  <h1>travidia</h1>
+  <p class="subtitle">Local video transcription, powered by WhisperX.</p>
+
+  <form id="transcribe-form">
+    <label>
+      Video file
+      <input type="file" id="video" name="video" accept="video/*" required />
+    </label>
+
+    <label class="row checkbox-row">
+      <input type="checkbox" id="diarize" name="diarize" />
+      Enable speaker diarization (requires HF_TOKEN on the server)
+    </label>
+
+    <label>
+      Output format
+      <select id="output_format" name="output_format">
+        <option value="srt" selected>SRT (subtitles)</option>
+        <option value="txt">TXT (plain text)</option>
+        <option value="json">JSON</option>
+      </select>
+    </label>
+
+    <button type="submit" id="submit-btn">Transcribe</button>
+
+    <p class="status" id="status">Transcribing... this can take a while.</p>
+    <p class="error" id="error"></p>
+  </form>
+</main>
+
+<script>
+  const form = document.getElementById("transcribe-form");
+  const submitBtn = document.getElementById("submit-btn");
+  const statusEl = document.getElementById("status");
+  const errorEl = document.getElementById("error");
+
+  form.addEventListener("submit", async (event) => {
+    event.preventDefault();
+
+    errorEl.style.display = "none";
+    errorEl.textContent = "";
+    statusEl.style.display = "block";
+    submitBtn.disabled = true;
+
+    const formData = new FormData(form);
+    const diarizeCheckbox = document.getElementById("diarize");
+    formData.set("diarize", diarizeCheckbox.checked ? "true" : "false");
+
+    try {
+      const response = await fetch("/api/transcribe", {
+        method: "POST",
+        body: formData,
+      });
+
+      if (!response.ok) {
+        let message = `Request failed (${response.status})`;
+        try {
+          const body = await response.json();
+          if (body && body.detail) {
+            message = body.detail;
+          }
+        } catch (_) {
+          // response body wasn't JSON; fall back to the generic message
+        }
+        throw new Error(message);
+      }
+
+      const blob = await response.blob();
+      const disposition = response.headers.get("Content-Disposition") || "";
+      const match = disposition.match(/filename="?([^"]+)"?/);
+      const filename = match ? match[1] : "transcript";
+
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      errorEl.textContent = err.message || "Something went wrong.";
+      errorEl.style.display = "block";
+    } finally {
+      statusEl.style.display = "none";
+      submitBtn.disabled = false;
+    }
+  });
+</script>
+</body>
+</html>
