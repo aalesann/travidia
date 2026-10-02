@@ -15,6 +15,7 @@ import tempfile
 from pathlib import Path
 
 from fastapi import FastAPI, Form, HTTPException, UploadFile
+from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import FileResponse, Response
 
 from travidia.core.audio import AudioExtractionError, extract_audio
@@ -87,12 +88,13 @@ async def transcribe_endpoint(
         video_path.write_bytes(video_bytes)
 
         try:
-            audio_path = extract_audio(video_path, output_dir=tmp_path)
+            audio_path = await run_in_threadpool(extract_audio, video_path, output_dir=tmp_path)
         except AudioExtractionError as exc:
             raise HTTPException(status_code=500, detail=str(exc)) from exc
 
         try:
-            result: TranscriptionResult = transcribe(
+            result: TranscriptionResult = await run_in_threadpool(
+                transcribe,
                 audio_path,
                 model_name=model_name,
                 diarize=diarize,
@@ -105,7 +107,7 @@ async def transcribe_endpoint(
 
         output_filename = f"transcript.{output_format}"
         output_path = tmp_path / output_filename
-        exporter(result, output_path)
+        await run_in_threadpool(exporter, result, output_path)
         content = output_path.read_bytes()
 
     return Response(

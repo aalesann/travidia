@@ -10,12 +10,15 @@ real bytes to assert against.
 
 from __future__ import annotations
 
+import asyncio
 import io
 import json
+import time
 from pathlib import Path
 from unittest.mock import patch
 
 from fastapi.testclient import TestClient
+from httpx import ASGITransport, AsyncClient
 
 from travidia.core.audio import AudioExtractionError
 from travidia.core.export import write_json, write_srt, write_txt
@@ -163,6 +166,47 @@ def test_transcribe_extract_audio_error_returns_clean_500():
     detail = response.json()["detail"]
     assert "ffmpeg exploded" in detail
     assert "Traceback" not in detail
+
+
+def test_transcribe_does_not_block_other_requests():
+    """Regression test: the event loop must stay responsive while a
+    transcription request is in flight, proving the blocking calls inside
+    `transcribe_endpoint` run off the event loop (via `run_in_threadpool`)
+    rather than directly on it.
+    """
+
+    def slow_transcribe(*args, **kwargs):
+        time.sleep(0.3)  # simulates blocking WhisperX inference
+        return _fake_result()
+
+    async def run():
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://test") as ac:
+            with (
+                patch("travidia.web.app.extract_audio") as mock_extract_audio,
+                patch("travidia.web.app.transcribe", side_effect=slow_transcribe),
+            ):
+                mock_extract_audio.return_value = Path("/tmp/fake.wav")
+                files = {"video": ("video.mp4", io.BytesIO(b"fake"), "video/mp4")}
+                transcribe_task = asyncio.create_task(
+                    ac.post("/api/transcribe", data={"output_format": "srt"}, files=files)
+                )
+                # No sleep here on purpose: inserting an `await asyncio.sleep(...)`
+                # between creating the task and issuing this GET would itself get
+                # starved for the same reason this test exists -- if the event
+                # loop is blocked by the synchronous transcribe call, that sleep
+                # would not resume until the blocking call finishes, which would
+                # silently swallow the very delay this test needs to observe.
+                start = time.monotonic()
+                root_response = await ac.get("/")
+                elapsed = time.monotonic() - start
+                transcribe_response = await transcribe_task
+
+        assert root_response.status_code == 200
+        assert elapsed < 0.2  # GET / returned well before the 0.3s transcribe finished
+        assert transcribe_response.status_code == 200
+
+    asyncio.run(run())
 
 
 def test_transcribe_transcribe_error_returns_clean_500(tmp_path: Path):
